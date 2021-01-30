@@ -44,6 +44,41 @@ bool detectExpVar(char *input)
     }
 }
 
+/* Counts the number of occurrences of the $$ variable. Returns an int of the count. */
+int countExpVar(char *string)
+{
+    char *expVariable = "$";
+    char varCount = 0;
+    char totalCount = 0;
+
+    /* Traverse through the string and count any $$ that appear twice */
+    for (int i = 0; i < strlen(string); i++)
+    {
+        /* Exclude counting any $ is not consecutive before or after another $*/
+        if (string[i] == *expVariable && (string[i - 1] == *expVariable || string[i + 1] == *expVariable))
+        {
+            varCount++;
+            printf("match found at %d\n", i);
+            if (varCount == 2)
+            {
+                /* Reset the varCount when we count 2 consecutive $ */
+                varCount = 0;
+                totalCount++;
+            }
+        }
+    }
+
+    return totalCount;
+}
+
+/* Receives: the old string, new String, and the expansion variable */
+/* Returns: the modified string, replacing all instances of the variable 
+with the pid */
+// char *replaceExpVar(char *oldStr, char *newStr)
+// {
+
+// }
+
 /* Tokenize the user command and create struct from it */
 struct userCommand *tokenizeCommand(char *input)
 {
@@ -60,8 +95,11 @@ struct userCommand *tokenizeCommand(char *input)
     bool varDetected = detectExpVar(input);
     if (varDetected)
     {
+        /* Grab the pid and convert it to a string */
+        char pid[8];
+        sprintf(pid, "%d", getpid());
+
         modifiedStr = calloc(MAX_CHAR_LENGTH + 1, sizeof(char));
-        printf("we found $$\n");
     }
     else
     {
@@ -206,7 +244,7 @@ int getInput()
 
 int main()
 {
-    int userInput = 0;
+    int userInput = 1;
 
     while (userInput == 0)
     {
@@ -215,6 +253,11 @@ int main()
         int showPrompt = getInput();
         fflush(stdout);
     }
+
+    char *str = "hello arg1$$$ arg2$$ arg3$ arg4$$";
+    int count = countExpVar(str);
+
+    printf("The number of times $$ appears is %d\n", count);
 
     return 0;
 }
