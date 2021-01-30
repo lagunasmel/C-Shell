@@ -25,7 +25,7 @@ struct userCommand
 };
 
 /* Detects the presence of $$ variable and returns true or false */
-int detectExpVar(char *input)
+bool detectExpVar(char *input)
 {
     char *expandVariable = "$$";
 
@@ -35,12 +35,12 @@ int detectExpVar(char *input)
     /* Check if the string is null. Return false if so. */
     if (currStr == NULL)
     {
-        return 0;
+        return false;
     }
     else
     {
         /* Return true if currStr is not null */
-        return 1;
+        return true;
     }
 }
 
@@ -54,8 +54,26 @@ struct userCommand *tokenizeCommand(char *input)
     char *exeCommand = "&\n";
     char *exeCommand2 = "&";
 
+    char *modifiedStr; /* size to be determined according to presence of $$ variable */
+
     /* Check if the $$ is present in the input */
-    int varDetected = detectExpVar(input);
+    bool varDetected = detectExpVar(input);
+    if (varDetected)
+    {
+        modifiedStr = calloc(MAX_CHAR_LENGTH + 1, sizeof(char));
+        printf("we found $$\n");
+    }
+    else
+    {
+        /* Copy the user input to the modifiedStr variable */
+        modifiedStr = calloc(strlen(input) + 1, sizeof(char));
+        strcpy(modifiedStr, input);
+
+        /* Remove the trailing new line character*/
+        /* Code snippet for the following line of code borrowed from here: 
+        https://stackoverflow.com/questions/9628637/how-can-i-get-rid-of-n-from-string-in-c*/
+        modifiedStr[strcspn(modifiedStr, "\n")] = '\0';
+    }
 
     /* If the expansion variable is detected, perform string manipulation on the input
     before tokenizing */
@@ -64,10 +82,9 @@ struct userCommand *tokenizeCommand(char *input)
 
     /* Use with strtok_r */
     char *saveptr;
-    char *argptr;
 
     /* Grab the command */
-    char *token = strtok_r(input, " ", &saveptr);
+    char *token = strtok_r(modifiedStr, " ", &saveptr);
     currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     strcpy(currCommand->command, token);
 
