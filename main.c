@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -22,15 +24,41 @@ struct userCommand
     bool exeInBackground; /* Initially set to false */
 };
 
+/* Detects the presence of $$ variable and returns true or false */
+int detectExpVar(char *input)
+{
+    char *expandVariable = "$$";
+
+    char *currStr;
+    currStr = strstr(input, expandVariable);
+
+    /* Check if the string is null. Return false if so. */
+    if (currStr == NULL)
+    {
+        return 0;
+    }
+    else
+    {
+        /* Return true if currStr is not null */
+        return 1;
+    }
+}
+
 /* Tokenize the user command and create struct from it */
 struct userCommand *tokenizeCommand(char *input)
 {
-    /* Format of incoming input is: 
-        command [arg1 arg2 ...] [< input_file] [> output_file] [&] */
+    /* Format of incoming input:
+    command [arg1 arg2 ...] [< input_file] [> output_file] [&] */
     char *inputSymbol = "<";
     char *outputSymbol = ">";
     char *exeCommand = "&\n";
     char *exeCommand2 = "&";
+
+    /* Check if the $$ is present in the input */
+    int varDetected = detectExpVar(input);
+
+    /* If the expansion variable is detected, perform string manipulation on the input
+    before tokenizing */
 
     struct userCommand *currCommand = malloc(sizeof(struct userCommand));
 
