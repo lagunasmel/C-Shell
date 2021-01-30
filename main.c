@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -11,14 +12,14 @@ void displayPrompt()
     printf(": ");
 };
 
-// command [arg1 arg2 ...] [< input_file] [> output_file] [&]
+/* Struct that formats and stores the input received by the user. */
 struct userCommand
 {
     char *command;
     char *args[MAX_ARG_NUM + 1];
     char *inputFile;
     char *outputFile;
-    // int *exeInBackground; // set to false initially
+    bool exeInBackground; /* Initially set to false */
 };
 
 /* Tokenize the user command and create struct from it */
@@ -29,6 +30,7 @@ struct userCommand *tokenizeCommand(char *input)
     char *inputSymbol = "<";
     char *outputSymbol = ">";
     char *exeCommand = "&\n";
+    char *exeCommand2 = "&";
 
     struct userCommand *currCommand = malloc(sizeof(struct userCommand));
 
@@ -36,29 +38,27 @@ struct userCommand *tokenizeCommand(char *input)
     char *saveptr;
     char *argptr;
 
-    //*currCommand->exeInBackground = 0;
-
     /* Grab the command */
     char *token = strtok_r(input, " ", &saveptr);
     currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     strcpy(currCommand->command, token);
 
-    /* Grab any optional args */
+    /* Counter to store any optional args */
     int i = 0;
 
     while (token = strtok_r(NULL, " ", &saveptr))
     {
-         /* Check for any input files */
-        if (strcmp(inputSymbol, token) == 0) 
+        /* Check for any input files */
+        if (strcmp(inputSymbol, token) == 0)
         {
-        /* If we have found the < symbol, forward the pointer 
+            /* If we have found the < symbol, forward the pointer 
             to save the input file name */
             token = strtok_r(NULL, " ", &saveptr);
             currCommand->inputFile = calloc(strlen(token) + 1, sizeof(char));
             strcpy(currCommand->inputFile, token);
         }
         /* Check for any output files */
-        else if (strcmp(outputSymbol, token) == 0) 
+        else if (strcmp(outputSymbol, token) == 0)
         {
             /* If we have found the > symbol, forward the pointer 
             to save the output file name */
@@ -67,9 +67,10 @@ struct userCommand *tokenizeCommand(char *input)
             strcpy(currCommand->outputFile, token);
         }
         /* Check if this command will be executed in the background */
-        else if (strcmp(exeCommand, token) == 0) 
+        else if (strcmp(exeCommand, token) == 0 || strcmp(exeCommand2, token) == 0)
         {
-            // *currCommand->exeInBackground = 1;
+            currCommand->exeInBackground = true;
+            printf("we found an &\n");
             break; /* we can exit the loop here */
         }
         /* Otherwise, we are saving as an arg */
@@ -112,13 +113,21 @@ void printOutputFileName(struct userCommand *aUserCommand)
 
 int printBoolean(struct userCommand *aUserCommand)
 {
-    //printf("Boolean is %d\n", aUserCommand->exeInBackground);
+    if (aUserCommand->exeInBackground)
+    {
+        printf("Boolean is true\n");
+    }
+    else
+    {
+        printf("boolean is false");
+    }
     return 0;
 }
-/* Receives input for the user. Will parse the input. */
+
+/* Receives input from the user. */
+/* Will parse the input and store it in a userCommand struct. */
 int getInput()
 {
-
     char *buffer;
     size_t bufsize = 0;
     getline(&buffer, &bufsize, stdin);
@@ -130,21 +139,19 @@ int getInput()
 
     /* Create a struct from the current command */
     struct userCommand *currCommand = tokenizeCommand(buffer);
-
-    printCurrCommand(currCommand);
-    printArgs(currCommand);
-    printInputFileName(currCommand);
-    // printOutputFileName(currCommand);
-    // printBoolean(currCommand);
-
     free(buffer);
 
+    /* Used for testing struct input is correct */
+    // printCurrCommand(currCommand);
+    // printArgs(currCommand);
+    // printInputFileName(currCommand);
+    // printOutputFileName(currCommand);
+    // printBoolean(currCommand);
 
     /* Ignore # and new lines */
 
     return 0;
 }
-
 
 int main()
 {
