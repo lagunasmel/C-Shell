@@ -70,7 +70,6 @@ struct userCommand *tokenizeCommand(char *input)
         else if (strcmp(exeCommand, token) == 0 || strcmp(exeCommand2, token) == 0)
         {
             currCommand->exeInBackground = true;
-            printf("we found an &\n");
             break; /* we can exit the loop here */
         }
         /* Otherwise, we are saving as an arg */
@@ -85,11 +84,13 @@ struct userCommand *tokenizeCommand(char *input)
     return currCommand;
 };
 
+/* Used for testing purposes for userCommand struct */
 void printCurrCommand(struct userCommand *aUserCommand)
 {
     printf("command is %s\n", aUserCommand->command);
 }
 
+/* Used for testing purposes for userCommand struct */
 void printArgs(struct userCommand *aUserCommand)
 {
     for (int i = 0; i <= MAX_ARG_NUM; i++)
@@ -101,17 +102,20 @@ void printArgs(struct userCommand *aUserCommand)
     }
 }
 
+/* Used for testing purposes for userCommand struct */
 void printInputFileName(struct userCommand *aUserCommand)
 {
     printf("Input file name is %s\n", aUserCommand->inputFile);
 }
 
+/* Used for testing purposes for userCommand struct */
 void printOutputFileName(struct userCommand *aUserCommand)
 {
     printf("Output file name is %s\n", aUserCommand->outputFile);
 }
 
-int printBoolean(struct userCommand *aUserCommand)
+/* Used for testing purposes for userCommand struct */
+void printBoolean(struct userCommand *aUserCommand)
 {
     if (aUserCommand->exeInBackground)
     {
@@ -121,7 +125,6 @@ int printBoolean(struct userCommand *aUserCommand)
     {
         printf("boolean is false");
     }
-    return 0;
 }
 
 /* Receives input from the user. */
@@ -131,15 +134,19 @@ int getInput()
     char *buffer;
     size_t bufsize = 0;
     getline(&buffer, &bufsize, stdin);
-    fflush(stdout);
 
     char *newLine = "\n";
     char *hash = "#";
     char *exitCommand = "exit\n";
 
-    /* Create a struct from the current command */
+    /* Check if it's a new line or hash, and ignore if so */
+    if (strcmp(buffer, newLine) == 0 || buffer[0] == *hash)
+    {
+        free(buffer);
+        return 0;
+    }
+    /* If it is not a hash or new line, we can make a struct from the current command */
     struct userCommand *currCommand = tokenizeCommand(buffer);
-    free(buffer);
 
     /* Used for testing struct input is correct */
     // printCurrCommand(currCommand);
@@ -148,8 +155,7 @@ int getInput()
     // printOutputFileName(currCommand);
     // printBoolean(currCommand);
 
-    /* Ignore # and new lines */
-
+    free(buffer);
     return 0;
 }
 
@@ -159,13 +165,10 @@ int main()
 
     while (userInput == 0)
     {
+        /* Display the shell prompt */
         displayPrompt();
         int showPrompt = getInput();
-
-        if (showPrompt == 1)
-        {
-            userInput = 1;
-        }
+        fflush(stdout);
     }
 
     return 0;
