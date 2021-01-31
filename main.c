@@ -58,7 +58,6 @@ int countExpVar(char *string)
         if (string[i] == *expVariable && (string[i - 1] == *expVariable || string[i + 1] == *expVariable))
         {
             varCount++;
-            printf("match found at %d\n", i);
             if (varCount == 2)
             {
                 /* Reset the varCount when we count 2 consecutive $ */
@@ -69,6 +68,42 @@ int countExpVar(char *string)
     }
 
     return totalCount;
+}
+
+int replaceExpVar(char *oldStr, char *pid)
+{
+    char *expVariable = "$";
+    int i;                               /* used to iterate through old string */
+    int j = 0;                           /* used to iterate and build new string */
+    int pidLength = strlen(pid);         /* calculates how long the PID string length is */
+    int numOfVars = countExpVar(oldStr); /* counts number of times $$ appears */
+
+    /* Create a new char pointer */
+    char *modStr;
+    /* The length of the modified string is calculated by the count and pidLength. 
+    We add the pidlength and multiply it by the count of $$ variable, then subtract
+    the count * 2 to subtract the two $$ symbols */
+    modStr = calloc(strlen(oldStr) + (numOfVars * pidLength) - (numOfVars * 2) + 1, sizeof(char));
+
+    /* Iterate through the old string to append to the new string */
+    for (i = 0; i < strlen(oldStr); i++)
+    {
+        /* If we find a pair of $$, we can replace the symbols with the pid here */
+        if (oldStr[i] == *expVariable && oldStr[i + 1] == *expVariable)
+        {
+            strcat(modStr, pid); /* Concatenate the pid string to the current index */
+            j += pidLength;      /* forward the index in the new string */
+            i++;                 /* forward the index in the old string to avoid counting duplicates */
+        }
+        else
+        {
+            /* Otherwise, we can proceed normally with adding the string char by char */
+            modStr[j] = oldStr[i];
+            j++;
+        }
+    }
+
+    printf("modified string is %s\n", modStr);
 }
 
 /* Receives: the old string, new String, and the expansion variable */
@@ -254,10 +289,15 @@ int main()
         fflush(stdout);
     }
 
-    char *str = "hello arg1$$$ arg2$$ arg3$ arg4$$";
+    char *str = "echo $$";
+    char *pid;
+    int pidInt = getpid();
+    pid = calloc(10, sizeof(char));
+    sprintf(pid, "%d", pidInt);
+
     int count = countExpVar(str);
 
-    printf("The number of times $$ appears is %d\n", count);
+    replaceExpVar(str, pid);
 
     return 0;
 }
