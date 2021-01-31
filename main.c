@@ -1,9 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <string.h>    /* strcmp, strcat */
+#include <stdbool.h>   /* bool */
+#include <sys/types.h> /* pid */
+#include <unistd.h>    /* chdir */
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -165,6 +165,10 @@ struct userCommand *tokenizeCommand(char *input)
         modifiedStr[len - 1] = '\0';
     }
 
+    char *exitCommand = "exit";
+    char *statusCommand = "status";
+    char *lsCommand = "ls";
+
     /* Use with strtok_r */
     char *saveptr;
 
@@ -172,6 +176,12 @@ struct userCommand *tokenizeCommand(char *input)
     char *token = strtok_r(modifiedStr, " ", &saveptr);
     currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     strcpy(currCommand->command, token);
+
+    /* Check for status flags and return them immediately if they are detected */
+    if (strcmp(currCommand->command, exitCommand) == 0)
+    {
+        return currCommand;
+    }
 
     /* Counter to store any optional args */
     int i = 0;
@@ -251,6 +261,49 @@ void printBoolean(struct userCommand *aUserCommand)
     }
 }
 
+/* Receives: the usercommand struct 
+Returns: result of command processing */
+int processCommand(struct userCommand *currCommand)
+{
+    char *exitFlag = "exit";
+    char *cdFlag = "cd";
+    char *statusFlag = "status";
+    /* Check for any status flags */
+    /* Check if the user wants to exit */
+    if (strcmp(currCommand->command, exitFlag) == 0)
+    {
+        /* Kill any child processes */
+        exit(0);
+    }
+    /* If the user wants to change directories */
+    else if (strcmp(currCommand->command, cdFlag) == 0)
+    {
+        /* Check if first arg is null. If so, change to the directory in the HOME variable */
+        if (currCommand->args[0] == NULL)
+        {
+            int changeDir = chdir(getenv("HOME"));
+        }
+        /* Otherwise, change to the path it's being directed to */
+        else
+        {
+            int changeDir = chdir(currCommand->args[0]);
+
+            if (changeDir == -1)
+            {
+                printf("No directory named %s found in the current directory\n", currCommand->args[0]);
+                fflush(stdout);
+            }
+        }
+        /* FOR TESTING PURPOSES -  comment out later */
+        char cwd[256];
+        if (getcwd(cwd, sizeof(cwd)) != NULL)
+        {
+            printf("cwd is %s\n", cwd);
+            fflush(stdout);
+        }
+    }
+}
+
 /* Receives input from the user. */
 /* Will parse the input and store it in a userCommand struct. */
 int getInput()
@@ -261,7 +314,6 @@ int getInput()
 
     char *newLine = "\n";
     char *hash = "#";
-    char *exitCommand = "exit\n";
 
     /* Check if it's a new line or hash, and ignore if so */
     if (strcmp(buffer, newLine) == 0 || buffer[0] == *hash)
@@ -271,6 +323,8 @@ int getInput()
     }
     /* If it is not a hash or new line, we can make a struct from the current command */
     struct userCommand *currCommand = tokenizeCommand(buffer);
+
+    processCommand(currCommand);
 
     /* Used for testing struct input is correct */
     // printCurrCommand(currCommand);
