@@ -70,7 +70,10 @@ int countExpVar(char *string)
     return totalCount;
 }
 
-int replaceExpVar(char *oldStr, char *pid)
+/* Receives: the old string and the pid */
+/* Returns: the modified string, replacing all instances of the expansion variable 
+with the pid */
+char *replaceExpVar(char *oldStr, char *pid)
 {
     char *expVariable = "$";
     int i;                               /* used to iterate through old string */
@@ -103,16 +106,8 @@ int replaceExpVar(char *oldStr, char *pid)
         }
     }
 
-    printf("modified string is %s\n", modStr);
+    return modStr;
 }
-
-/* Receives: the old string, new String, and the expansion variable */
-/* Returns: the modified string, replacing all instances of the variable 
-with the pid */
-// char *replaceExpVar(char *oldStr, char *newStr)
-// {
-
-// }
 
 /* Tokenize the user command and create struct from it */
 struct userCommand *tokenizeCommand(char *input)
@@ -121,37 +116,54 @@ struct userCommand *tokenizeCommand(char *input)
     command [arg1 arg2 ...] [< input_file] [> output_file] [&] */
     char *inputSymbol = "<";
     char *outputSymbol = ">";
-    char *exeCommand = "&\n";
-    char *exeCommand2 = "&";
+    char *exeCommand = "&";
 
     char *modifiedStr; /* size to be determined according to presence of $$ variable */
 
     /* Check if the $$ is present in the input */
     bool varDetected = detectExpVar(input);
+
+    /* if the expansion variable is detected, modify the string accordingly */
     if (varDetected)
     {
         /* Grab the pid and convert it to a string */
-        char pid[8];
-        sprintf(pid, "%d", getpid());
+        char *pid;
+        int pidInt = getpid();
+        pid = calloc(10, sizeof(char));
+        sprintf(pid, "%d", pidInt);
+        /* Use the pid length and expansion variable count to allocate memory */
+        int pidLength = strlen(pid);
+        int numOfVars = countExpVar(input);
 
-        modifiedStr = calloc(MAX_CHAR_LENGTH + 1, sizeof(char));
+        modifiedStr = calloc(strlen(input) + (numOfVars * pidLength) - (numOfVars * 2) + 1, sizeof(char));
+
+        /* Replace all $$ in the input string */
+        modifiedStr = replaceExpVar(input, pid);
     }
+    /* Otherwise, we can proceed with the string without modifying it */
     else
     {
         /* Copy the user input to the modifiedStr variable */
         modifiedStr = calloc(strlen(input) + 1, sizeof(char));
         strcpy(modifiedStr, input);
-
-        /* Remove the trailing new line character*/
-        /* Code snippet for the following line of code borrowed from here: 
-        https://stackoverflow.com/questions/9628637/how-can-i-get-rid-of-n-from-string-in-c*/
-        modifiedStr[strcspn(modifiedStr, "\n")] = '\0';
     }
 
-    /* If the expansion variable is detected, perform string manipulation on the input
-    before tokenizing */
+    /* Remove the trailing new line character*/
+    /* Code snippet for the following line of code borrowed from here: 
+    https://stackoverflow.com/questions/9628637/how-can-i-get-rid-of-n-from-string-in-c*/
+    modifiedStr[strcspn(modifiedStr, "\n")] = '\0';
 
     struct userCommand *currCommand = malloc(sizeof(struct userCommand));
+
+    /* Check if the command needs to be executed in the background */
+    int len = strlen(modifiedStr);
+    if (modifiedStr[len - 1] == *exeCommand)
+    {
+        /* Set to true if the & symbol is detected */
+        currCommand->exeInBackground = true;
+        /* Remove it so it doesn't get parsed */
+        modifiedStr[len - 1] = '\0';
+    }
 
     /* Use with strtok_r */
     char *saveptr;
@@ -183,12 +195,6 @@ struct userCommand *tokenizeCommand(char *input)
             token = strtok_r(NULL, " ", &saveptr);
             currCommand->outputFile = calloc(strlen(token) + 1, sizeof(char));
             strcpy(currCommand->outputFile, token);
-        }
-        /* Check if this command will be executed in the background */
-        else if (strcmp(exeCommand, token) == 0 || strcmp(exeCommand2, token) == 0)
-        {
-            currCommand->exeInBackground = true;
-            break; /* we can exit the loop here */
         }
         /* Otherwise, we are saving as an arg */
         else
@@ -241,7 +247,7 @@ void printBoolean(struct userCommand *aUserCommand)
     }
     else
     {
-        printf("boolean is false");
+        printf("boolean is false\n");
     }
 }
 
@@ -279,7 +285,7 @@ int getInput()
 
 int main()
 {
-    int userInput = 1;
+    int userInput = 0;
 
     while (userInput == 0)
     {
@@ -288,16 +294,6 @@ int main()
         int showPrompt = getInput();
         fflush(stdout);
     }
-
-    char *str = "echo $$";
-    char *pid;
-    int pidInt = getpid();
-    pid = calloc(10, sizeof(char));
-    sprintf(pid, "%d", pidInt);
-
-    int count = countExpVar(str);
-
-    replaceExpVar(str, pid);
 
     return 0;
 }
