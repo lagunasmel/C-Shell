@@ -3,7 +3,8 @@
 #include <string.h>    /* strcmp, strcat */
 #include <stdbool.h>   /* bool */
 #include <sys/types.h> /* pid */
-#include <unistd.h>    /* chdir */
+#include <unistd.h>    /* chdir, exec */
+#include <sys/wait.h>  /* waitpid */
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -169,6 +170,12 @@ struct userCommand *tokenizeCommand(char *input)
     char *statusCommand = "status";
     char *lsCommand = "ls";
 
+    /* The following code snippet was modeled after the parsing input example provided here: 
+    https://repl.it/@cs344/studentsc#main.c */
+    /* It is used to tokenize the user input and store the input in a struct to hold 
+    the command, any arguments, input file, outfile, and whether to run the process in the foreground
+    or background. */
+
     /* Use with strtok_r */
     char *saveptr;
 
@@ -261,18 +268,114 @@ void printBoolean(struct userCommand *aUserCommand)
     }
 }
 
+int freeChild(struct userCommand *currCommand)
+{
+    int i = 0;
+    free(currCommand->command);
+
+    while (currCommand->args[i] != NULL)
+    {
+        free(currCommand->args[i]);
+        i++;
+    }
+    free(currCommand->inputFile);
+    free(currCommand->outputFile);
+    currCommand->exeInBackground = false;
+    return 0;
+}
+
+/* createChildProcess */
+/* This function was modeled after an example fork provided here: 
+https://repl.it/@cs344/42execlforklsc 
+It was featured in the "Executing a New Program" in Module 4. */
+void createChildProcess(struct userCommand *currCommand)
+{
+    int childStatus;
+
+    /* Retrieve the command and any list of arguments from the struct */
+    char *command = currCommand->command;
+    char *args[MAX_ARG_NUM];
+    args[0] = command;
+
+    int i = 1; /* used to add commands from the struct to the new arg pointer */
+    int j = 0; /* used to iterate through the currCommand->args array */
+
+    /* Iterate through the current list of commands and add them to the new args array */
+    while (currCommand->args[j] != NULL)
+    {
+        args[i] = currCommand->args[j];
+        j++;
+    }
+
+    /* Set NULL as the last pointer in the args array */
+    i++;
+    args[i] = NULL;
+
+    printf("the args array: ");
+    fflush(stdout);
+    for (int i = 0; i < MAX_ARG_NUM; i++)
+    {
+        if (args[i] == NULL)
+        {
+            break;
+        }
+        printf("%s ", args[i]);
+        fflush(stdout);
+    }
+    printf("\n");
+    fflush(stdout);
+
+    // Fork a new process
+    pid_t spawnPid = fork();
+
+    switch (spawnPid)
+    {
+    case -1:
+        perror("fork()\n");
+        exit(1);
+        break;
+    case 0:
+        // In the child process
+        printf("CHILD(%d) running command\n", getpid());
+        fflush(stdout);
+        // Replace the current program with "/bin/ls"
+        execvp(command, args);
+
+        freeChild(currCommand);
+
+        free(command);
+        // exec only returns if there is an error
+        perror(command);
+        exit(2);
+        break;
+    default:
+        // In the parent process
+        // Wait for child's termination
+        spawnPid = waitpid(spawnPid, &childStatus, 0);
+        //printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
+        //fflush(stdout);
+        // exit(0);
+        break;
+    }
+}
+
+/* processCommand */
 /* Receives: the usercommand struct 
-Returns: result of command processing */
-int processCommand(struct userCommand *currCommand)
+Checks if the command raises any of the 3 built in commands (cd, status, or exit)
+If not, it is a child process, and is processed accordingly.
+Returns: VOID */
+void processCommand(struct userCommand *currCommand)
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
     char *statusFlag = "status";
     /* Check for any status flags */
-    /* Check if the user wants to exit */
+
+    /* Check if the user wants to exit - need to complete */
     if (strcmp(currCommand->command, exitFlag) == 0)
     {
         /* Kill any child processes */
+        free(currCommand);
         exit(0);
     }
     /* If the user wants to change directories */
@@ -301,6 +404,17 @@ int processCommand(struct userCommand *currCommand)
             printf("cwd is %s\n", cwd);
             fflush(stdout);
         }
+    }
+    /* Check if the user entered the status flag */
+    else if (strcmp(currCommand->command, statusFlag) == 0)
+    {
+        printf("status flag raised\n");
+        fflush(stdout);
+    }
+    /* Otherwise, this is a child processs */
+    else
+    {
+        createChildProcess(currCommand);
     }
 }
 
