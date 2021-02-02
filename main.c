@@ -301,24 +301,6 @@ int countArgs(struct userCommand *currCommand)
     return count;
 }
 
-// char *createArgs(char *emptyArr, struct userCommand *currCommand, int argCount)
-// {
-//     int i = 0;
-//     emptyArr[0] = currCommand->command;
-
-//     if (currCommand->args[0] == NULL)
-//     {
-//         emptyArr[1] = NULL;
-//         return emptyArr;
-//     }
-
-//     for (int i = 1; i <= argCount + 1; i++)
-//     {
-//         emptyArr[i] = currCommand->args[i];
-//     }
-//     return emptyArr;
-// }
-
 /* createChildProcess */
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
