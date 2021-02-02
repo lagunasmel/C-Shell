@@ -229,6 +229,7 @@ struct userCommand *tokenizeCommand(char *input)
 void printCurrCommand(struct userCommand *aUserCommand)
 {
     printf("command is %s\n", aUserCommand->command);
+    fflush(stdout);
 }
 
 /* Used for testing purposes for userCommand struct */
@@ -239,6 +240,7 @@ void printArgs(struct userCommand *aUserCommand)
         if (aUserCommand->args[i] != NULL)
         {
             printf("Arg is %s\n", aUserCommand->args[i]);
+            fflush(stdout);
         }
     }
 }
@@ -270,19 +272,52 @@ void printBoolean(struct userCommand *aUserCommand)
 
 int freeChild(struct userCommand *currCommand)
 {
-    int i = 0;
+    // int i = 0;
     free(currCommand->command);
 
-    while (currCommand->args[i] != NULL)
+    for (int i = 0; i <= MAX_ARG_NUM; i++)
     {
         free(currCommand->args[i]);
-        i++;
     }
     free(currCommand->inputFile);
     free(currCommand->outputFile);
     currCommand->exeInBackground = false;
     return 0;
 }
+
+/* countArgs */
+/* Counts the number of arguments currently in the user command */
+/* Receives: userCommand struct */
+/* Returns: an int indicating the number of arguments */
+int countArgs(struct userCommand *currCommand)
+{
+    int count = 0;
+    int i = 0;
+    while (currCommand->args[i] != NULL)
+    {
+        count++;
+        i++;
+    }
+    return count;
+}
+
+// char *createArgs(char *emptyArr, struct userCommand *currCommand, int argCount)
+// {
+//     int i = 0;
+//     emptyArr[0] = currCommand->command;
+
+//     if (currCommand->args[0] == NULL)
+//     {
+//         emptyArr[1] = NULL;
+//         return emptyArr;
+//     }
+
+//     for (int i = 1; i <= argCount + 1; i++)
+//     {
+//         emptyArr[i] = currCommand->args[i];
+//     }
+//     return emptyArr;
+// }
 
 /* createChildProcess */
 /* This function was modeled after an example fork provided here: 
@@ -292,38 +327,23 @@ void createChildProcess(struct userCommand *currCommand)
 {
     int childStatus;
 
-    /* Retrieve the command and any list of arguments from the struct */
-    char *command = currCommand->command;
-    char *args[MAX_ARG_NUM];
-    args[0] = command;
+    /* Retrieve number of arguments in the current command */
+    int argCount = countArgs(currCommand);
 
-    int i = 1; /* used to add commands from the struct to the new arg pointer */
-    int j = 0; /* used to iterate through the currCommand->args array */
+    /* Initialize args array to be passed to execvp */
+    char *args[MAX_ARG_NUM] = {NULL};
+    args[0] = currCommand->command; /* this contains the command to be executed */
 
-    /* Iterate through the current list of commands and add them to the new args array */
+    int i = 1; /* counter for the args array */
+    int j = 0; /* counter to iterate through the command line arguments */
+
+    /* Add all of the arguments from the user command to the args array */
     while (currCommand->args[j] != NULL)
     {
         args[i] = currCommand->args[j];
         j++;
+        i++;
     }
-
-    /* Set NULL as the last pointer in the args array */
-    i++;
-    args[i] = NULL;
-
-    printf("the args array: ");
-    fflush(stdout);
-    for (int i = 0; i < MAX_ARG_NUM; i++)
-    {
-        if (args[i] == NULL)
-        {
-            break;
-        }
-        printf("%s ", args[i]);
-        fflush(stdout);
-    }
-    printf("\n");
-    fflush(stdout);
 
     // Fork a new process
     pid_t spawnPid = fork();
@@ -335,17 +355,12 @@ void createChildProcess(struct userCommand *currCommand)
         exit(1);
         break;
     case 0:
-        // In the child process
-        printf("CHILD(%d) running command\n", getpid());
-        fflush(stdout);
-        // Replace the current program with "/bin/ls"
-        execvp(command, args);
+        // This is the child process
+        execvp(args[0], args);
 
+        // Exec will return if there is an error
+        perror(args[0]);
         freeChild(currCommand);
-
-        free(command);
-        // exec only returns if there is an error
-        perror(command);
         exit(2);
         break;
     default:
@@ -354,7 +369,7 @@ void createChildProcess(struct userCommand *currCommand)
         spawnPid = waitpid(spawnPid, &childStatus, 0);
         //printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
         //fflush(stdout);
-        // exit(0);
+        //exit(0);
         break;
     }
 }
@@ -459,8 +474,8 @@ int main()
     {
         /* Display the shell prompt */
         displayPrompt();
-        int showPrompt = getInput();
         fflush(stdout);
+        int showPrompt = getInput();
     }
 
     return 0;
