@@ -3,8 +3,9 @@
 #include <string.h>    /* strcmp, strcat */
 #include <stdbool.h>   /* bool */
 #include <sys/types.h> /* pid */
-#include <unistd.h>    /* chdir, exec */
+#include <unistd.h>    /* chdir, exec, dup2 */
 #include <sys/wait.h>  /* waitpid */
+#include <fcntl.h>     /* fcntl */
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -269,6 +270,40 @@ void printBoolean(struct userCommand *aUserCommand)
         printf("boolean is false\n");
     }
 }
+/* setOutput */
+/* Receives: the userCommand struct */
+/* Sets output file if it is detected in the command. Prints any error messages. */
+/* Returns: void */
+/* This function was modeled after the code snippet presented here:
+https://repl.it/@cs344/54redirectc */
+void setOutput(struct userCommand *currCommand)
+{
+    int targetFD;
+
+    /* Check if there is an output file in the struct */
+    if (currCommand->outputFile != NULL)
+    {
+        targetFD = open(currCommand->outputFile, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+
+        if (targetFD == -1)
+        {
+            perror("Error opening file");
+            exit(1);
+        }
+
+        // Currently printf writes to the terminal
+        printf("The file descriptor for targetFD is %d\n", targetFD);
+        fflush(stdout);
+
+        // Point FD 1 to the target FD (outputFile)
+        int result = dup2(targetFD, 1);
+        if (result == -1)
+        {
+            perror("dup2");
+            exit(1);
+        }
+    }
+}
 
 int freeChild(struct userCommand *currCommand)
 {
@@ -337,13 +372,18 @@ void createChildProcess(struct userCommand *currCommand)
         exit(1);
         break;
     case 0:
-        // This is the child process
+        /* Detect an input file */
+
+        /* Detect any output file */
+        setOutput(currCommand);
+
+        /* Execute the command */
         execvp(args[0], args);
 
-        // Exec will return if there is an error
+        /* Return if there is an error */
         perror(args[0]);
         freeChild(currCommand);
-        exit(2);
+        exit(1);
         break;
     default:
         // In the parent process
