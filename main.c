@@ -291,20 +291,52 @@ void setOutput(struct userCommand *currCommand)
             exit(1);
         }
 
-        // Currently printf writes to the terminal
-        printf("The file descriptor for targetFD is %d\n", targetFD);
-        fflush(stdout);
-
         // Point FD 1 to the target FD (outputFile)
         int result = dup2(targetFD, 1);
         if (result == -1)
         {
-            perror("dup2");
+            perror("Error redirecting the output");
             exit(1);
         }
     }
+
+    return;
 }
 
+/* setInput */
+/* Receives: the userCommand struct */
+/* Sets input file if it is detected in the command. Prints any error messages. */
+/* Returns: void */
+/* This function was modeled after the code snippet presented here:
+/* https://repl.it/@cs344/54sortViaFilesc */
+void setInput(struct userCommand *currCommand)
+{
+    int sourceFD;
+
+    /* Open the input file if it has been detected */
+    if (currCommand->inputFile != NULL)
+    {
+        /* open the source file */
+        sourceFD = open(currCommand->inputFile, O_RDONLY);
+        /* Check for errors */
+        if (sourceFD == -1)
+        {
+            perror("Error opening input file");
+            exit(1);
+        }
+        /* Redirect the input file */
+        int result = dup2(sourceFD, 0);
+        /* Check for errors */
+        if (result == -1)
+        {
+            perror("Error redirecting the input");
+            exit(1);
+        }
+    }
+    return;
+}
+
+/* Frees all of the data in the currCommand after it has been processed. */
 int freeChild(struct userCommand *currCommand)
 {
     // int i = 0;
@@ -373,6 +405,7 @@ void createChildProcess(struct userCommand *currCommand)
         break;
     case 0:
         /* Detect an input file */
+        setInput(currCommand);
 
         /* Detect any output file */
         setOutput(currCommand);
