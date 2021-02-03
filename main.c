@@ -276,7 +276,7 @@ void printBoolean(struct userCommand *aUserCommand)
 /* Returns: void */
 /* This function was modeled after the code snippet presented here:
 https://repl.it/@cs344/54redirectc */
-void setOutput(struct userCommand *currCommand)
+void redirectOutput(struct userCommand *currCommand)
 {
     int targetFD;
 
@@ -303,13 +303,13 @@ void setOutput(struct userCommand *currCommand)
     return;
 }
 
-/* setInput */
+/* redirectInput */
 /* Receives: the userCommand struct */
 /* Sets input file if it is detected in the command. Prints any error messages. */
 /* Returns: void */
 /* This function was modeled after the code snippet presented here:
 /* https://repl.it/@cs344/54sortViaFilesc */
-void setInput(struct userCommand *currCommand)
+void redirectInput(struct userCommand *currCommand)
 {
     int sourceFD;
 
@@ -400,16 +400,14 @@ void createChildProcess(struct userCommand *currCommand)
     switch (spawnPid)
     {
     case -1:
-        perror("fork()\n");
+        perror("fork() error\n");
         exit(1);
         break;
     case 0:
         /* Detect an input file */
-        setInput(currCommand);
-
+        redirectInput(currCommand);
         /* Detect any output file */
-        setOutput(currCommand);
-
+        redirectOutput(currCommand);
         /* Execute the command */
         execvp(args[0], args);
 
@@ -419,12 +417,17 @@ void createChildProcess(struct userCommand *currCommand)
         exit(1);
         break;
     default:
-        // In the parent process
-        // Wait for child's termination
-        spawnPid = waitpid(spawnPid, &childStatus, 0);
-        //printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
-        //fflush(stdout);
-        //exit(0);
+        /* Parent process */
+        // Wait for child's termination if executing in the foreground
+        if (!currCommand->exeInBackground)
+        {
+            spawnPid = waitpid(spawnPid, &childStatus, 0);
+        }
+        else
+        {
+            printf("background pid is %d\n", spawnPid);
+            fflush(stdout);
+        }
         break;
     }
 }
@@ -489,8 +492,8 @@ void processCommand(struct userCommand *currCommand)
 }
 
 /* Receives input from the user. */
-/* Will parse the input and store it in a userCommand struct. */
-int getInput()
+/* Will check for hash or newline, otherwise return the buffer */
+char *getInput()
 {
     char *buffer;
     size_t bufsize = 0;
@@ -502,23 +505,10 @@ int getInput()
     /* Check if it's a new line or hash, and ignore if so */
     if (strcmp(buffer, newLine) == 0 || buffer[0] == *hash)
     {
-        free(buffer);
-        return 0;
+        buffer = NULL;
     }
-    /* If it is not a hash or new line, we can make a struct from the current command */
-    struct userCommand *currCommand = tokenizeCommand(buffer);
 
-    processCommand(currCommand);
-
-    /* Used for testing struct input is correct */
-    // printCurrCommand(currCommand);
-    // printArgs(currCommand);
-    // printInputFileName(currCommand);
-    // printOutputFileName(currCommand);
-    // printBoolean(currCommand);
-
-    free(buffer);
-    return 0;
+    return buffer;
 }
 
 int main()
@@ -527,10 +517,18 @@ int main()
 
     while (userInput == 0)
     {
+        char *buffer;
         /* Display the shell prompt */
         displayPrompt();
         fflush(stdout);
-        int showPrompt = getInput();
+        /* Grab the command */
+        buffer = getInput();
+        /* tokenize the command and process it */
+        if (buffer != NULL)
+        {
+            struct userCommand *currCommand = tokenizeCommand(buffer);
+            processCommand(currCommand);
+        }
     }
 
     return 0;
