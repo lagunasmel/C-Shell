@@ -284,20 +284,26 @@ void redirectOutput(struct userCommand *currCommand)
     if (currCommand->outputFile != NULL)
     {
         targetFD = open(currCommand->outputFile, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+    }
+    /* Check if the user doesn't redirect the standard output for a background command */
+    else if (currCommand->exeInBackground && currCommand->outputFile == NULL)
+    {
+        targetFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0640);
+    }
 
-        if (targetFD == -1)
-        {
-            perror("Error opening file");
-            exit(1);
-        }
+    /* Check for any errors */
+    if (targetFD == -1)
+    {
+        perror("Error opening file\n");
+        exit(1);
+    }
 
-        // Point FD 1 to the target FD (outputFile)
-        int result = dup2(targetFD, 1);
-        if (result == -1)
-        {
-            perror("Error redirecting the output");
-            exit(1);
-        }
+    /* Point FD 1 to the target FD (outputFile) */
+    int result = dup2(targetFD, 1);
+    if (result == -1)
+    {
+        perror("Error redirecting the output\n");
+        exit(1);
     }
 
     return;
@@ -318,21 +324,26 @@ void redirectInput(struct userCommand *currCommand)
     {
         /* open the source file */
         sourceFD = open(currCommand->inputFile, O_RDONLY);
-        /* Check for errors */
-        if (sourceFD == -1)
-        {
-            perror("Error opening input file");
-            exit(1);
-        }
-        /* Redirect the input file */
-        int result = dup2(sourceFD, 0);
-        /* Check for errors */
-        if (result == -1)
-        {
-            perror("Error redirecting the input");
-            exit(1);
-        }
     }
+    else if (currCommand->exeInBackground && currCommand->inputFile == NULL)
+    {
+        sourceFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0640);
+    }
+    /* Check for errors */
+    if (sourceFD == -1)
+    {
+        perror("Error opening input file\n");
+        exit(1);
+    }
+    /* Redirect the input file */
+    int result = dup2(sourceFD, 0);
+    /* Check for errors */
+    if (result == -1)
+    {
+        perror("Error redirecting the input\n");
+        exit(1);
+    }
+
     return;
 }
 
@@ -387,7 +398,7 @@ int returnNextIndex(int processIDs[])
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
 It was featured in the "Executing a New Program" in Module 4. */
-void createChildProcess(struct userCommand *currCommand, int processIDs[])
+void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[])
 {
     int childStatus;
 
@@ -440,8 +451,9 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[])
         if (!currCommand->exeInBackground)
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
-            // printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
-            // fflush(stdout);
+            exitStatus[0] = WEXITSTATUS(childStatus); /* if exited normallly */
+
+            fflush(stdout);
         }
         else
         {
@@ -462,9 +474,10 @@ Any number above 0 indicates that it requires checking for finished status.
 /* Returns: an int */
 int checkBackgroundProcs(int processIDs[])
 {
-    int childStatus;
-    int terminationStatus;
-    int childPid;
+
+    int childStatus;       /* for the waitpid */
+    int terminationStatus; /* for checking the status of child */
+    int childPid;          /* id of child we are checking */
 
     /* If there are no background processes running, we can exit */
     if (processIDs[0] == 0)
@@ -481,13 +494,14 @@ int checkBackgroundProcs(int processIDs[])
         /* Grab the current pid */
         childPid = processIDs[i];
 
+        /* If the pid is above 0, its exit status needs to be checked */
         if (childPid > 0)
         {
             childStatus = waitpid(childPid, &terminationStatus, WNOHANG);
-            /* If the childStatus is not 0, it has finished and its exit status can be checked */
+            /* If the waitpid is not 0, it has finished and its exit status can be checked */
             if (childStatus != 0)
             {
-                /* Check if the child process exited normally */
+                /* Check if the child process exited normally and return its exit status */
                 if (WIFEXITED(terminationStatus))
                 {
                     printf("background pid %d is done: exit value %d\n", childPid,
@@ -495,7 +509,7 @@ int checkBackgroundProcs(int processIDs[])
                     fflush(stdout);
                 }
                 /* Check if terminated by a signal */
-                /* Set this ID to a negative int to exclude in later checks */
+                /* Set this pid to a negative int to exclude in later checks */
                 processIDs[i] = -1;
             }
         }
@@ -509,7 +523,7 @@ int checkBackgroundProcs(int processIDs[])
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
 If not, it is a child process, and is processed accordingly.
 Returns: VOID */
-void processCommand(struct userCommand *currCommand, int processIDs[])
+void processCommand(struct userCommand *currCommand, int processIDs[], int exitStatus[])
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
@@ -542,24 +556,18 @@ void processCommand(struct userCommand *currCommand, int processIDs[])
                 fflush(stdout);
             }
         }
-        /* FOR TESTING PURPOSES -  comment out later */
-        // char cwd[256];
-        // if (getcwd(cwd, sizeof(cwd)) != NULL)
-        // {
-        //     printf("cwd is %s\n", cwd);
-        //     fflush(stdout);
-        // }
     }
     /* Check if the user entered the status flag */
     else if (strcmp(currCommand->command, statusFlag) == 0)
     {
-        printf("status flag raised\n");
+        /* Print out the status of the most recently executed fg command */
+        printf("exit value %d\n", exitStatus[0]);
         fflush(stdout);
     }
     /* Otherwise, this is not a built-in processs */
     else
     {
-        createChildProcess(currCommand, processIDs);
+        createChildProcess(currCommand, processIDs, exitStatus);
     }
 }
 
@@ -588,6 +596,8 @@ int main()
 {
     bool activateShell = true;
     int bgIDs[200];
+    int fgExitStatus[1];
+    fgExitStatus[0] = 0;
 
     while (activateShell)
     {
@@ -604,7 +614,7 @@ int main()
         if (buffer != NULL)
         {
             struct userCommand *currCommand = tokenizeCommand(buffer);
-            processCommand(currCommand, bgIDs);
+            processCommand(currCommand, bgIDs, fgExitStatus);
         }
     }
 
