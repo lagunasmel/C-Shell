@@ -368,13 +368,30 @@ int countArgs(struct userCommand *currCommand)
     return count;
 }
 
+int returnNextIndex(int processIDs[])
+{
+    int count = 0;
+
+    for (int i = 0; i < 200; i++)
+    {
+        if (processIDs[i] == 0)
+        {
+            break;
+        }
+        count++;
+    }
+    return count;
+}
+
 /* createChildProcess */
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
 It was featured in the "Executing a New Program" in Module 4. */
-void createChildProcess(struct userCommand *currCommand)
+void createChildProcess(struct userCommand *currCommand, int processIDs[])
 {
     int childStatus;
+
+    int index = returnNextIndex(processIDs);
 
     /* Retrieve number of arguments in the current command */
     int argCount = countArgs(currCommand);
@@ -422,12 +439,15 @@ void createChildProcess(struct userCommand *currCommand)
         if (!currCommand->exeInBackground)
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
+            fflush(stdout);
         }
         else
         {
+            processIDs[index] = spawnPid;
             printf("background pid is %d\n", spawnPid);
             fflush(stdout);
         }
+        // printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
         break;
     }
 }
@@ -437,7 +457,7 @@ void createChildProcess(struct userCommand *currCommand)
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
 If not, it is a child process, and is processed accordingly.
 Returns: VOID */
-void processCommand(struct userCommand *currCommand)
+void processCommand(struct userCommand *currCommand, int processIDs[])
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
@@ -487,7 +507,7 @@ void processCommand(struct userCommand *currCommand)
     /* Otherwise, this is a child processs */
     else
     {
-        createChildProcess(currCommand);
+        createChildProcess(currCommand, processIDs);
     }
 }
 
@@ -514,6 +534,7 @@ char *getInput()
 int main()
 {
     int userInput = 0;
+    int bgIDs[200];
 
     while (userInput == 0)
     {
@@ -527,7 +548,7 @@ int main()
         if (buffer != NULL)
         {
             struct userCommand *currCommand = tokenizeCommand(buffer);
-            processCommand(currCommand);
+            processCommand(currCommand, bgIDs);
         }
     }
 
