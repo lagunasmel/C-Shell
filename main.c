@@ -20,7 +20,7 @@ void displayPrompt()
 struct userCommand
 {
     char *command;
-    char *args[MAX_ARG_NUM + 1];
+    char *args[MAX_ARG_NUM];
     char *inputFile;
     char *outputFile;
     bool exeInBackground; /* Initially set to false */
@@ -391,7 +391,8 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[])
 {
     int childStatus;
 
-    int index = returnNextIndex(processIDs);
+    /* Used to retrieve the next available index if the command is a bg process */
+    int index;
 
     /* Retrieve number of arguments in the current command */
     int argCount = countArgs(currCommand);
@@ -411,7 +412,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[])
         i++;
     }
 
-    // Fork a new process
+    // Fork a new child process
     pid_t spawnPid = fork();
 
     switch (spawnPid)
@@ -435,21 +436,72 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[])
         break;
     default:
         /* Parent process */
-        // Wait for child's termination if executing in the foreground
+        /* Wait for the process to finish executing if in the foreground */
         if (!currCommand->exeInBackground)
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
-            fflush(stdout);
+            // printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
+            // fflush(stdout);
         }
         else
         {
-            processIDs[index] = spawnPid;
+            /* Otherwise, this is a background process */
+            index = returnNextIndex(processIDs); /* find the next available index */
+            processIDs[index] = spawnPid;        /* assign the new process ID to this index */
             printf("background pid is %d\n", spawnPid);
             fflush(stdout);
         }
-        // printf("PARENT(%d): child(%d) terminated. Exiting function\n", getpid(), spawnPid);
         break;
     }
+}
+
+/* checkBackgroundProcs */
+/* Receives: list of process IDs running in the background
+This function will iterate through the list and check for any IDs higher than 0. 
+Any number above 0 indicates that it requires checking for finished status. 
+/* Returns: an int */
+int checkBackgroundProcs(int processIDs[])
+{
+    int childStatus;
+    int terminationStatus;
+    int childPid;
+
+    /* If there are no background processes running, we can exit */
+    if (processIDs[0] == 0)
+    {
+        return 1;
+    }
+    /* Retrieve the number of IDs currently in the list */
+    int counter = returnNextIndex(processIDs);
+
+    /* Check if any of the process IDs has finished. 
+    Change their values if so. */
+    for (int i = 0; i < counter; i++)
+    {
+        /* Grab the current pid */
+        childPid = processIDs[i];
+
+        if (childPid > 0)
+        {
+            childStatus = waitpid(childPid, &terminationStatus, WNOHANG);
+            /* If the childStatus is not 0, it has finished and its exit status can be checked */
+            if (childStatus != 0)
+            {
+                /* Check if the child process exited normally */
+                if (WIFEXITED(terminationStatus))
+                {
+                    printf("background pid %d is done: exit value %d\n", childPid,
+                           WEXITSTATUS(terminationStatus));
+                    fflush(stdout);
+                }
+                /* Check if terminated by a signal */
+                /* Set this ID to a negative int to exclude in later checks */
+                processIDs[i] = -1;
+            }
+        }
+    }
+
+    return 0;
 }
 
 /* processCommand */
@@ -491,12 +543,12 @@ void processCommand(struct userCommand *currCommand, int processIDs[])
             }
         }
         /* FOR TESTING PURPOSES -  comment out later */
-        char cwd[256];
-        if (getcwd(cwd, sizeof(cwd)) != NULL)
-        {
-            printf("cwd is %s\n", cwd);
-            fflush(stdout);
-        }
+        // char cwd[256];
+        // if (getcwd(cwd, sizeof(cwd)) != NULL)
+        // {
+        //     printf("cwd is %s\n", cwd);
+        //     fflush(stdout);
+        // }
     }
     /* Check if the user entered the status flag */
     else if (strcmp(currCommand->command, statusFlag) == 0)
@@ -504,7 +556,7 @@ void processCommand(struct userCommand *currCommand, int processIDs[])
         printf("status flag raised\n");
         fflush(stdout);
     }
-    /* Otherwise, this is a child processs */
+    /* Otherwise, this is not a built-in processs */
     else
     {
         createChildProcess(currCommand, processIDs);
@@ -519,10 +571,11 @@ char *getInput()
     size_t bufsize = 0;
     getline(&buffer, &bufsize, stdin);
 
+    /* Check for a new line or hash symbol */
     char *newLine = "\n";
     char *hash = "#";
 
-    /* Check if it's a new line or hash, and ignore if so */
+    /* Ignore the input and set to NULL if these characters are detected */
     if (strcmp(buffer, newLine) == 0 || buffer[0] == *hash)
     {
         buffer = NULL;
@@ -533,11 +586,14 @@ char *getInput()
 
 int main()
 {
-    int userInput = 0;
+    bool activateShell = true;
     int bgIDs[200];
 
-    while (userInput == 0)
+    while (activateShell)
     {
+        /* Check for any background processes */
+        checkBackgroundProcs(bgIDs);
+
         char *buffer;
         /* Display the shell prompt */
         displayPrompt();
