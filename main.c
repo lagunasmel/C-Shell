@@ -6,6 +6,7 @@
 #include <unistd.h>    /* chdir, exec, dup2 */
 #include <sys/wait.h>  /* waitpid */
 #include <fcntl.h>     /* fcntl */
+#include <signal.h>
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -348,9 +349,8 @@ void redirectInput(struct userCommand *currCommand)
 }
 
 /* Frees all of the data in the currCommand after it has been processed. */
-int freeChild(struct userCommand *currCommand)
+int freeCommand(struct userCommand *currCommand)
 {
-    // int i = 0;
     free(currCommand->command);
 
     for (int i = 0; i <= MAX_ARG_NUM; i++)
@@ -359,7 +359,6 @@ int freeChild(struct userCommand *currCommand)
     }
     free(currCommand->inputFile);
     free(currCommand->outputFile);
-    currCommand->exeInBackground = false;
     return 0;
 }
 
@@ -433,6 +432,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         exit(1);
         break;
     case 0:
+        /* Child process */
         /* Detect an input file */
         redirectInput(currCommand);
         /* Detect any output file */
@@ -442,7 +442,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
 
         /* Return if there is an error */
         perror(args[0]);
-        freeChild(currCommand);
+        freeCommand(currCommand);
         exit(1);
         break;
     default:
@@ -518,6 +518,56 @@ int checkBackgroundProcs(int processIDs[])
     return 0;
 }
 
+/* killChildProcs */
+/* Receives: the list of bg process IDs 
+Will iterate through any processes that have not terminated and kill them. */
+int killChildProcs(int processIDs[])
+{
+    int count = returnNextIndex(processIDs);
+
+    if (count == 0)
+    {
+        return 1;
+    }
+    /* Find any currently active processes */
+    for (int i = 0; i < count; i++)
+    {
+        if (processIDs[i] > 0)
+        {
+            kill(processIDs[i], SIGTERM);
+            processIDs[i] = -1;
+        }
+    }
+
+    return 0;
+}
+
+/* changeDir */
+/* Receives: the userCommand struct 
+/* Will change the current directory to the path indicated in the command or to HOME
+if no directory path is indicated */
+void changeDir(struct userCommand *currCommand)
+{
+    /* Check if first arg is null. If so, change to the directory in the HOME variable */
+    if (currCommand->args[0] == NULL)
+    {
+        int changeDir = chdir(getenv("HOME"));
+    }
+    /* Otherwise, change to the path it's being directed to */
+    else
+    {
+        int changeDir = chdir(currCommand->args[0]);
+
+        if (changeDir == -1)
+        {
+            printf("No directory named %s found in the current directory\n", currCommand->args[0]);
+            fflush(stdout);
+        }
+    }
+
+    return;
+}
+
 /* processCommand */
 /* Receives: the usercommand struct 
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
@@ -534,28 +584,14 @@ void processCommand(struct userCommand *currCommand, int processIDs[], int exitS
     if (strcmp(currCommand->command, exitFlag) == 0)
     {
         /* Kill any child processes */
-        free(currCommand);
+        killChildProcs(processIDs);
+        freeCommand(currCommand);
         exit(0);
     }
     /* If the user wants to change directories */
     else if (strcmp(currCommand->command, cdFlag) == 0)
     {
-        /* Check if first arg is null. If so, change to the directory in the HOME variable */
-        if (currCommand->args[0] == NULL)
-        {
-            int changeDir = chdir(getenv("HOME"));
-        }
-        /* Otherwise, change to the path it's being directed to */
-        else
-        {
-            int changeDir = chdir(currCommand->args[0]);
-
-            if (changeDir == -1)
-            {
-                printf("No directory named %s found in the current directory\n", currCommand->args[0]);
-                fflush(stdout);
-            }
-        }
+        changeDir(currCommand);
     }
     /* Check if the user entered the status flag */
     else if (strcmp(currCommand->command, statusFlag) == 0)
@@ -616,6 +652,8 @@ int main()
             struct userCommand *currCommand = tokenizeCommand(buffer);
             processCommand(currCommand, bgIDs, fgExitStatus);
         }
+
+        free(buffer);
     }
 
     return 0;
