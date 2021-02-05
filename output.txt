@@ -2,6 +2,5 @@ main.c
 output.txt
 README.txt
 smallsh
-test156027
 token
 token.c

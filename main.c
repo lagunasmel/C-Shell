@@ -393,7 +393,10 @@ int returnNextIndex(int processIDs[])
     }
     return count;
 }
-
+/* getStatus */
+/* Checks the exit status of the child. 
+Will indicate whether the status was terminated by a signal. 
+This function must only be used by the parent branch. */
 void getStatus(int childStatus, int exitStatus[])
 {
     /* If exited normally*/
@@ -479,7 +482,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         if (!currCommand->exeInBackground)
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
-            /* check exit status */
+            /* check exit status and print if necessary */
             getStatus(childStatus, exitStatus);
         }
         else
@@ -536,6 +539,12 @@ int checkBackgroundProcs(int processIDs[])
                     fflush(stdout);
                 }
                 /* Check if terminated by a signal */
+                else if (WIFSIGNALED(terminationStatus))
+                {
+                    printf("background pid %d is done: exit value %d\n", childPid,
+                           WTERMSIG(terminationStatus));
+                    fflush(stdout);
+                }
                 /* Set this pid to a negative int to exclude in later checks */
                 processIDs[i] = -1;
             }
