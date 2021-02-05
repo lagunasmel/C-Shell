@@ -15,6 +15,7 @@
 void displayPrompt()
 {
     printf(": ");
+    fflush(stdout);
 };
 
 /* Struct that formats and stores the input received by the user. */
@@ -113,7 +114,7 @@ char *replaceExpVar(char *oldStr, char *pid)
 }
 
 /* Tokenize the user command and create struct from it */
-struct userCommand *tokenizeCommand(char *input)
+struct userCommand *parseCommand(char *input)
 {
     /* Format of incoming input:
     command [arg1 arg2 ...] [< input_file] [> output_file] [&] */
@@ -271,7 +272,7 @@ void printBoolean(struct userCommand *aUserCommand)
         printf("boolean is false\n");
     }
 }
-/* setOutput */
+/* redirectOutput */
 /* Receives: the userCommand struct */
 /* Sets output file if it is detected in the command. Prints any error messages. */
 /* Returns: void */
@@ -393,6 +394,22 @@ int returnNextIndex(int processIDs[])
     return count;
 }
 
+void getStatus(int childStatus, int exitStatus[])
+{
+    /* If exited normally*/
+    if (WIFEXITED(childStatus))
+    {
+        exitStatus[0] = WEXITSTATUS(childStatus);
+    }
+    else if (WIFSIGNALED(childStatus))
+    {
+        exitStatus[0] = WTERMSIG(childStatus);
+        printf("terminated by signal %d\n", exitStatus[0]);
+        fflush(stdout);
+    }
+    return;
+}
+
 /* createChildProcess */
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
@@ -400,6 +417,7 @@ It was featured in the "Executing a New Program" in Module 4. */
 void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[])
 {
     int childStatus;
+    struct sigaction SIGINT_action = {0}; /* for child fg process */
 
     /* Used to retrieve the next available index if the command is a bg process */
     int index;
@@ -433,6 +451,16 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         break;
     case 0:
         /* Child process */
+        /* Set up signal handler for child in fg */
+        if (!currCommand->exeInBackground)
+        {
+            /* signal handler */
+            SIGINT_action.sa_handler = SIG_DFL; /* set default action back */
+            sigfillset(&SIGINT_action.sa_mask);
+            SIGINT_action.sa_flags = 0;
+            sigaction(SIGINT, &SIGINT_action, NULL);
+        }
+
         /* Detect an input file */
         redirectInput(currCommand);
         /* Detect any output file */
@@ -451,9 +479,8 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         if (!currCommand->exeInBackground)
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
-            exitStatus[0] = WEXITSTATUS(childStatus); /* if exited normallly */
-
-            fflush(stdout);
+            /* check exit status */
+            getStatus(childStatus, exitStatus);
         }
         else
         {
@@ -628,12 +655,26 @@ char *getInput()
     return buffer;
 }
 
+/* handle_SIGINT */
+/* This function was constructed using the following code snippet: 
+https://repl.it/@cs344/53singal2c */
+
+bool fgOnlyMode;
+
 int main()
 {
     bool activateShell = true;
     int bgIDs[200];
     int fgExitStatus[1];
     fgExitStatus[0] = 0;
+
+    /* Signal code snippet based on the following code: */
+    /* https://repl.it/@cs344/53siguserc */
+    struct sigaction SIGINT_action = {0}; /* for ctrl+c */
+    SIGINT_action.sa_handler = SIG_IGN;
+    sigfillset(&SIGINT_action.sa_mask);
+    SIGINT_action.sa_flags = 0;
+    sigaction(SIGINT, &SIGINT_action, NULL);
 
     while (activateShell)
     {
@@ -643,13 +684,12 @@ int main()
         char *buffer;
         /* Display the shell prompt */
         displayPrompt();
-        fflush(stdout);
         /* Grab the command */
         buffer = getInput();
         /* tokenize the command and process it */
         if (buffer != NULL)
         {
-            struct userCommand *currCommand = tokenizeCommand(buffer);
+            struct userCommand *currCommand = parseCommand(buffer);
             processCommand(currCommand, bgIDs, fgExitStatus);
         }
 
