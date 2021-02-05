@@ -285,27 +285,27 @@ void redirectOutput(struct userCommand *currCommand)
     /* Check if there is an output file in the struct */
     if (currCommand->outputFile != NULL)
     {
-        targetFD = open(currCommand->outputFile, O_WRONLY | O_CREAT | O_TRUNC, 0640);
+        targetFD = open(currCommand->outputFile, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+
+        /* Check for any errors */
+        if (targetFD == -1)
+        {
+            perror("Error opening file\n");
+            exit(1);
+        }
+
+        /* Point FD 1 to the target FD (outputFile) */
+        int result = dup2(targetFD, 1);
+        if (result == -1)
+        {
+            perror("Error redirecting the output\n");
+            exit(1);
+        }
     }
     /* Check if the user doesn't redirect the standard output for a background command */
     else if (currCommand->exeInBackground && currCommand->outputFile == NULL)
     {
-        targetFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0640);
-    }
-
-    /* Check for any errors */
-    if (targetFD == -1)
-    {
-        perror("Error opening file\n");
-        exit(1);
-    }
-
-    /* Point FD 1 to the target FD (outputFile) */
-    int result = dup2(targetFD, 1);
-    if (result == -1)
-    {
-        perror("Error redirecting the output\n");
-        exit(1);
+        targetFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     }
 
     return;
@@ -325,25 +325,25 @@ void redirectInput(struct userCommand *currCommand)
     if (currCommand->inputFile != NULL)
     {
         /* open the source file */
-        sourceFD = open(currCommand->inputFile, O_RDONLY);
+        sourceFD = open(currCommand->inputFile, O_RDONLY, 0644);
+        /* Check for errors */
+        if (sourceFD == -1)
+        {
+            perror("Error opening input file\n");
+            exit(1);
+        }
+        /* Redirect the input file */
+        int result = dup2(sourceFD, 0);
+        /* Check for errors */
+        if (result == -1)
+        {
+            perror("Error redirecting the input\n");
+            exit(1);
+        }
     }
     else if (currCommand->exeInBackground && currCommand->inputFile == NULL)
     {
-        sourceFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0640);
-    }
-    /* Check for errors */
-    if (sourceFD == -1)
-    {
-        perror("Error opening input file\n");
-        exit(1);
-    }
-    /* Redirect the input file */
-    int result = dup2(sourceFD, 0);
-    /* Check for errors */
-    if (result == -1)
-    {
-        perror("Error redirecting the input\n");
-        exit(1);
+        sourceFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     }
 
     return;
@@ -702,7 +702,7 @@ int main()
             processCommand(currCommand, bgIDs, fgExitStatus);
         }
 
-        free(buffer);
+        // free(buffer);
     }
 
     return 0;
