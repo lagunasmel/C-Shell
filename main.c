@@ -11,6 +11,8 @@
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
 
+bool fgOnlyMode = false;
+
 /* Displays the shell prompt for user to enter chars and args */
 void displayPrompt()
 {
@@ -164,7 +166,10 @@ struct userCommand *parseCommand(char *input)
     if (modifiedStr[len - 1] == *exeCommand)
     {
         /* Set to true if the & symbol is detected */
-        currCommand->exeInBackground = true;
+        if (!fgOnlyMode)
+        {
+            currCommand->exeInBackground = true;
+        }
         /* Remove it so it doesn't get parsed */
         modifiedStr[len - 1] = '\0';
     }
@@ -290,7 +295,7 @@ void redirectOutput(struct userCommand *currCommand)
         /* Check for any errors */
         if (targetFD == -1)
         {
-            perror("Error opening file\n");
+            perror("Error opening file: ");
             exit(1);
         }
 
@@ -298,7 +303,7 @@ void redirectOutput(struct userCommand *currCommand)
         int result = dup2(targetFD, 1);
         if (result == -1)
         {
-            perror("Error redirecting the output\n");
+            perror("Error redirecting the output: ");
             exit(1);
         }
     }
@@ -329,7 +334,7 @@ void redirectInput(struct userCommand *currCommand)
         /* Check for errors */
         if (sourceFD == -1)
         {
-            perror("Error opening input file\n");
+            perror("Error opening input file: ");
             exit(1);
         }
         /* Redirect the input file */
@@ -337,7 +342,7 @@ void redirectInput(struct userCommand *currCommand)
         /* Check for errors */
         if (result == -1)
         {
-            perror("Error redirecting the input\n");
+            perror("Error redirecting the input: ");
             exit(1);
         }
     }
@@ -417,8 +422,8 @@ void getStatus(int childStatus, int exitStatus[])
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
 It was featured in the "Executing a New Program" in Module 4. */
-void createChildProcess(struct userCommand *currCommand, int processIDs[], 
-    int exitStatus[], struct sigaction SIGINT_action)
+void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[],
+                        struct sigaction SIGINT_action, struct sigaction SIGTSTP_action)
 {
     int childStatus;
     /* Used to retrieve the next available index if the command is a bg process */
@@ -456,12 +461,15 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[],
         /* Set up signal handler for child in fg */
         if (!currCommand->exeInBackground)
         {
-            /* signal handler */
+            /* signal handlers */
             SIGINT_action.sa_handler = SIG_DFL; /* set default action back */
             sigfillset(&SIGINT_action.sa_mask);
             SIGINT_action.sa_flags = 0;
             sigaction(SIGINT, &SIGINT_action, NULL);
         }
+        /* All children must ignore ctrl+z */
+        SIGTSTP_action.sa_handler = SIG_IGN;
+        sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
         /* Detect an input file */
         redirectInput(currCommand);
@@ -610,8 +618,8 @@ void changeDir(struct userCommand *currCommand)
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
 If not, it is a child process, and is processed accordingly.
 Returns: VOID */
-void processCommand(struct userCommand *currCommand, int processIDs[], 
-    int exitStatus[], struct sigaction SIGINT_action)
+void processCommand(struct userCommand *currCommand, int processIDs[], int exitStatus[],
+                    struct sigaction SIGINT_action, struct sigaction SIGTSTP_action)
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
@@ -649,7 +657,7 @@ void processCommand(struct userCommand *currCommand, int processIDs[],
     /* Otherwise, this is not a built-in processs */
     else
     {
-        createChildProcess(currCommand, processIDs, exitStatus, SIGINT_action);
+        createChildProcess(currCommand, processIDs, exitStatus, SIGINT_action, SIGTSTP_action);
     }
 }
 
@@ -677,14 +685,23 @@ char *getInput()
 /* handle_SIGTSTP */
 /* This function was constructed using the following code snippet: 
 https://repl.it/@cs344/53singal2c */
-void handle_SIGTSTP(int signo){
-    char* message = "Entering foreground-only mode (& is now ignored)\n";
-    // We are using write rather than printf
-    write(1, message, strlen(message));
-    fflush(stdout);
+void handle_SIGTSTP(int signo)
+{
+    if (!fgOnlyMode)
+    {
+        char *message = "\nEntering foreground-only mode (& is now ignored)\n: ";
+        fgOnlyMode = true;
+        write(STDOUT_FILENO, message, strlen(message));
+        fflush(stdout);
     }
-
-bool fgOnlyMode;
+    else
+    {
+        char *message = "\nExiting foreground-only mode\n: ";
+        fgOnlyMode = false;
+        write(STDOUT_FILENO, message, strlen(message));
+        fflush(stdout);
+    }
+}
 
 int main()
 {
@@ -695,7 +712,7 @@ int main()
 
     /* Signal code snippet based on the following code: */
     /* https://repl.it/@cs344/53siguserc */
-    struct sigaction SIGINT_action = {0}, SIGTSTP_action = {0}; /* for ctrl+c */
+    struct sigaction SIGINT_action = {0}, SIGTSTP_action = {0};
     SIGINT_action.sa_handler = SIG_IGN;
     SIGINT_action.sa_flags = 0;
 
@@ -721,7 +738,7 @@ int main()
         if (buffer != NULL)
         {
             struct userCommand *currCommand = parseCommand(buffer);
-            processCommand(currCommand, bgIDs, fgExitStatus, SIGINT_action);
+            processCommand(currCommand, bgIDs, fgExitStatus, SIGINT_action, SIGTSTP_action);
         }
 
         free(buffer);
