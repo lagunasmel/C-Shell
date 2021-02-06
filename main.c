@@ -417,13 +417,12 @@ void getStatus(int childStatus, int exitStatus[])
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
 It was featured in the "Executing a New Program" in Module 4. */
-void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[])
+void createChildProcess(struct userCommand *currCommand, int processIDs[], 
+    int exitStatus[], struct sigaction SIGINT_action)
 {
     int childStatus;
-    struct sigaction SIGINT_action = {0}; /* for child fg process */
-
     /* Used to retrieve the next available index if the command is a bg process */
-    int index;
+    int indexNum;
 
     /* Retrieve number of arguments in the current command */
     int argCount = countArgs(currCommand);
@@ -488,8 +487,8 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         else
         {
             /* Otherwise, this is a background process */
-            index = returnNextIndex(processIDs); /* find the next available index */
-            processIDs[index] = spawnPid;        /* assign the new process ID to this index */
+            indexNum = returnNextIndex(processIDs); /* find the next available index */
+            processIDs[indexNum] = spawnPid;        /* assign the new process ID to this index */
             printf("background pid is %d\n", spawnPid);
             fflush(stdout);
         }
@@ -541,7 +540,7 @@ int checkBackgroundProcs(int processIDs[])
                 /* Check if terminated by a signal */
                 else if (WIFSIGNALED(terminationStatus))
                 {
-                    printf("background pid %d is done: exit value %d\n", childPid,
+                    printf("background pid %d is done: terminated by signal %d\n", childPid,
                            WTERMSIG(terminationStatus));
                     fflush(stdout);
                 }
@@ -611,7 +610,8 @@ void changeDir(struct userCommand *currCommand)
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
 If not, it is a child process, and is processed accordingly.
 Returns: VOID */
-void processCommand(struct userCommand *currCommand, int processIDs[], int exitStatus[])
+void processCommand(struct userCommand *currCommand, int processIDs[], 
+    int exitStatus[], struct sigaction SIGINT_action)
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
@@ -649,7 +649,7 @@ void processCommand(struct userCommand *currCommand, int processIDs[], int exitS
     /* Otherwise, this is not a built-in processs */
     else
     {
-        createChildProcess(currCommand, processIDs, exitStatus);
+        createChildProcess(currCommand, processIDs, exitStatus, SIGINT_action);
     }
 }
 
@@ -674,9 +674,15 @@ char *getInput()
     return buffer;
 }
 
-/* handle_SIGINT */
+/* handle_SIGTSTP */
 /* This function was constructed using the following code snippet: 
 https://repl.it/@cs344/53singal2c */
+void handle_SIGTSTP(int signo){
+    char* message = "Entering foreground-only mode (& is now ignored)\n";
+    // We are using write rather than printf
+    write(1, message, strlen(message));
+    fflush(stdout);
+    }
 
 bool fgOnlyMode;
 
@@ -689,11 +695,17 @@ int main()
 
     /* Signal code snippet based on the following code: */
     /* https://repl.it/@cs344/53siguserc */
-    struct sigaction SIGINT_action = {0}; /* for ctrl+c */
+    struct sigaction SIGINT_action = {0}, SIGTSTP_action = {0}; /* for ctrl+c */
     SIGINT_action.sa_handler = SIG_IGN;
-    sigfillset(&SIGINT_action.sa_mask);
     SIGINT_action.sa_flags = 0;
+
+    SIGTSTP_action.sa_handler = handle_SIGTSTP;
+    SIGTSTP_action.sa_flags = SA_RESTART;
+
+    sigfillset(&SIGINT_action.sa_mask);
+    sigfillset(&SIGTSTP_action.sa_mask);
     sigaction(SIGINT, &SIGINT_action, NULL);
+    sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
     while (activateShell)
     {
@@ -709,10 +721,10 @@ int main()
         if (buffer != NULL)
         {
             struct userCommand *currCommand = parseCommand(buffer);
-            processCommand(currCommand, bgIDs, fgExitStatus);
+            processCommand(currCommand, bgIDs, fgExitStatus, SIGINT_action);
         }
 
-        // free(buffer);
+        free(buffer);
     }
 
     return 0;
