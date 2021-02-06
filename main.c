@@ -6,7 +6,7 @@
 #include <unistd.h>    /* chdir, exec, dup2 */
 #include <sys/wait.h>  /* waitpid */
 #include <fcntl.h>     /* fcntl */
-#include <signal.h>
+#include <signal.h>    /* sigaction */
 
 #define MAX_CHAR_LENGTH 2048
 #define MAX_ARG_NUM 512
@@ -689,14 +689,14 @@ void handle_SIGTSTP(int signo)
 {
     if (!fgOnlyMode)
     {
-        char *message = "\nEntering foreground-only mode (& is now ignored)\n: ";
+        char *message = "\nEntering foreground-only mode (& is now ignored)\n";
         fgOnlyMode = true;
         write(STDOUT_FILENO, message, strlen(message));
         fflush(stdout);
     }
     else
     {
-        char *message = "\nExiting foreground-only mode\n: ";
+        char *message = "\nExiting foreground-only mode\n";
         fgOnlyMode = false;
         write(STDOUT_FILENO, message, strlen(message));
         fflush(stdout);
