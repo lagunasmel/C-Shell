@@ -560,6 +560,7 @@ Will iterate through any processes that have not terminated and kill them. */
 int killChildProcs(int processIDs[])
 {
     int count = returnNextIndex(processIDs);
+    int terminationStatus;
 
     if (count == 0)
     {
@@ -571,6 +572,7 @@ int killChildProcs(int processIDs[])
         if (processIDs[i] > 0)
         {
             kill(processIDs[i], SIGTERM);
+            waitpid(processIDs[i], &terminationStatus, 0);
             processIDs[i] = -1;
         }
     }
@@ -633,8 +635,16 @@ void processCommand(struct userCommand *currCommand, int processIDs[], int exitS
     else if (strcmp(currCommand->command, statusFlag) == 0)
     {
         /* Print out the status of the most recently executed fg command */
-        printf("exit value %d\n", exitStatus[0]);
-        fflush(stdout);
+        if (exitStatus[0] == 0 || exitStatus[0] == 1)
+        {
+            printf("exit value %d\n", exitStatus[0]);
+            fflush(stdout);
+        }
+        else
+        {
+            printf("terminated by signal %d\n", exitStatus[0]);
+            fflush(stdout);
+        }
     }
     /* Otherwise, this is not a built-in processs */
     else
