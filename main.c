@@ -422,10 +422,10 @@ void getStatus(int childStatus, int exitStatus[])
 /* This function was modeled after an example fork provided here: 
 https://repl.it/@cs344/42execlforklsc 
 It was featured in the "Executing a New Program" in Module 4. */
-void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[],
-                        struct sigaction SIGINT_action, struct sigaction SIGTSTP_action)
+void createChildProcess(struct userCommand *currCommand, int processIDs[], int exitStatus[])
 {
     int childStatus;
+    struct sigaction SIGINT_action = {0}, SIGTSTP_action = {0};
     /* Used to retrieve the next available index if the command is a bg process */
     int indexNum;
 
@@ -458,17 +458,18 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         break;
     case 0:
         /* Child process */
-        /* Set up signal handler for child in fg */
+        /* signal handlers */
+        /* Ignore ctrl+c if in the foreground */
         if (!currCommand->exeInBackground)
         {
-            /* signal handlers */
             SIGINT_action.sa_handler = SIG_DFL; /* set default action back */
             sigfillset(&SIGINT_action.sa_mask);
             SIGINT_action.sa_flags = 0;
             sigaction(SIGINT, &SIGINT_action, NULL);
         }
-        /* All children must ignore ctrl+z */
+        /* All fg and bg children must ignore ctrl+z */
         SIGTSTP_action.sa_handler = SIG_IGN;
+        sigfillset(&SIGTSTP_action.sa_mask);
         sigaction(SIGTSTP, &SIGTSTP_action, NULL);
 
         /* Detect an input file */
@@ -618,8 +619,7 @@ void changeDir(struct userCommand *currCommand)
 Checks if the command raises any of the 3 built in commands (cd, status, or exit)
 If not, it is a child process, and is processed accordingly.
 Returns: VOID */
-void processCommand(struct userCommand *currCommand, int processIDs[], int exitStatus[],
-                    struct sigaction SIGINT_action, struct sigaction SIGTSTP_action)
+void processCommand(struct userCommand *currCommand, int processIDs[], int exitStatus[])
 {
     char *exitFlag = "exit";
     char *cdFlag = "cd";
@@ -657,7 +657,7 @@ void processCommand(struct userCommand *currCommand, int processIDs[], int exitS
     /* Otherwise, this is not a built-in processs */
     else
     {
-        createChildProcess(currCommand, processIDs, exitStatus, SIGINT_action, SIGTSTP_action);
+        createChildProcess(currCommand, processIDs, exitStatus);
     }
 }
 
@@ -738,7 +738,7 @@ int main()
         if (buffer != NULL)
         {
             struct userCommand *currCommand = parseCommand(buffer);
-            processCommand(currCommand, bgIDs, fgExitStatus, SIGINT_action, SIGTSTP_action);
+            processCommand(currCommand, bgIDs, fgExitStatus);
         }
 
         free(buffer);
