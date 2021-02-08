@@ -1,6 +1,0 @@
-main.c
-output.txt
-README.txt
-smallsh
-token
-token.c

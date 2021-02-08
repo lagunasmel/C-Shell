@@ -1,3 +1,16 @@
+/* Author: Melissa Lagunas
+** Date: 02/08/21
+** Description: A small shell program built with C that can do the following: 
+**** Provide a prompt for running commands
+**** Handle blank lines and comments, which are lines beginning with the # character
+**** Provide expansion for the variable $$
+**** Execute 3 commands exit, cd, and status via code built into the shell
+**** Execute other commands by creating new processes using a function from the exec family of functions
+**** Support input and output redirection
+**** Support running commands in foreground and background processes
+**** Implement custom handlers for 2 signals, SIGINT and SIGTSTP
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>    /* strcmp, strcat */
@@ -13,14 +26,8 @@
 
 bool fgOnlyMode = false;
 
-/* Displays the shell prompt for user to enter chars and args */
-void displayPrompt()
-{
-    printf(": ");
-    fflush(stdout);
-};
-
-/* Struct that formats and stores the input received by the user. */
+/* struct userCommand */
+/* A struct that formats and stores the input received by the user. */
 struct userCommand
 {
     char *command;
@@ -30,7 +37,16 @@ struct userCommand
     bool exeInBackground; /* Initially set to false */
 };
 
-/* Detects the presence of $$ variable and returns true or false */
+/* displayPrompt */
+/* Displays the shell prompt for user to enter the command to run in the shell. */
+void displayPrompt()
+{
+    printf(": ");
+    fflush(stdout);
+};
+
+/* detectExpVar */
+/* Detects the presence of $$ variable. Returns true or false. */
 bool detectExpVar(char *input)
 {
     char *expandVariable = "$$";
@@ -50,7 +66,10 @@ bool detectExpVar(char *input)
     }
 }
 
-/* Counts the number of occurrences of the $$ variable. Returns an int of the count. */
+/* countExpVar */
+/* Helper function for replaceExpVar */
+/* Counts the number of occurrences of the $$ variable. 
+Returns an int of the count. */
 int countExpVar(char *string)
 {
     char *expVariable = "$";
@@ -76,9 +95,11 @@ int countExpVar(char *string)
     return totalCount;
 }
 
-/* Receives: the old string and the pid */
-/* Returns: the modified string, replacing all instances of the expansion variable 
-with the pid */
+/* replaceExpVar */
+/* helper function for parseCommand */
+/* Replaces the $$ expansion variable with the pid of the child process.
+/* Receives: the old string and the pid number */
+/* Returns: the modified string */
 char *replaceExpVar(char *oldStr, char *pid)
 {
     char *expVariable = "$";
@@ -115,6 +136,7 @@ char *replaceExpVar(char *oldStr, char *pid)
     return modStr;
 }
 
+/* parseCommand */
 /* Tokenize the user command and create struct from it */
 struct userCommand *parseCommand(char *input)
 {
@@ -192,12 +214,6 @@ struct userCommand *parseCommand(char *input)
     currCommand->command = calloc(strlen(token) + 1, sizeof(char));
     strcpy(currCommand->command, token);
 
-    /* Check for status flags and return them immediately if they are detected */
-    if (strcmp(currCommand->command, exitCommand) == 0)
-    {
-        return currCommand;
-    }
-
     /* Counter to store any optional args */
     int i = 0;
 
@@ -233,54 +249,9 @@ struct userCommand *parseCommand(char *input)
     return currCommand;
 };
 
-/* Used for testing purposes for userCommand struct */
-void printCurrCommand(struct userCommand *aUserCommand)
-{
-    printf("command is %s\n", aUserCommand->command);
-    fflush(stdout);
-}
-
-/* Used for testing purposes for userCommand struct */
-void printArgs(struct userCommand *aUserCommand)
-{
-    for (int i = 0; i <= MAX_ARG_NUM; i++)
-    {
-        if (aUserCommand->args[i] != NULL)
-        {
-            printf("Arg is %s\n", aUserCommand->args[i]);
-            fflush(stdout);
-        }
-    }
-}
-
-/* Used for testing purposes for userCommand struct */
-void printInputFileName(struct userCommand *aUserCommand)
-{
-    printf("Input file name is %s\n", aUserCommand->inputFile);
-}
-
-/* Used for testing purposes for userCommand struct */
-void printOutputFileName(struct userCommand *aUserCommand)
-{
-    printf("Output file name is %s\n", aUserCommand->outputFile);
-}
-
-/* Used for testing purposes for userCommand struct */
-void printBoolean(struct userCommand *aUserCommand)
-{
-    if (aUserCommand->exeInBackground)
-    {
-        printf("Boolean is true\n");
-    }
-    else
-    {
-        printf("boolean is false\n");
-    }
-}
 /* redirectOutput */
 /* Receives: the userCommand struct */
 /* Sets output file if it is detected in the command. Prints any error messages. */
-/* Returns: void */
 /* This function was modeled after the code snippet presented here:
 https://repl.it/@cs344/54redirectc */
 void redirectOutput(struct userCommand *currCommand)
@@ -354,6 +325,7 @@ void redirectInput(struct userCommand *currCommand)
     return;
 }
 
+/* freeCommand */
 /* Frees all of the data in the currCommand after it has been processed. */
 int freeCommand(struct userCommand *currCommand)
 {
@@ -384,6 +356,10 @@ int countArgs(struct userCommand *currCommand)
     return count;
 }
 
+/* returnNextIndex */
+/* Receives: list of process IDs running in the background
+/* Returns: an int indicating the next available index in the list
+*/
 int returnNextIndex(int processIDs[])
 {
     int count = 0;
@@ -398,17 +374,19 @@ int returnNextIndex(int processIDs[])
     }
     return count;
 }
-/* getStatus */
+
+/* setExitStatus */
 /* Checks the exit status of the child. 
 Will indicate whether the status was terminated by a signal. 
 This function must only be used by the parent branch. */
-void getStatus(int childStatus, int exitStatus[])
+void setExitStatus(int childStatus, int exitStatus[])
 {
     /* If exited normally*/
     if (WIFEXITED(childStatus))
     {
         exitStatus[0] = WEXITSTATUS(childStatus);
     }
+    /* If terminated by a signal */
     else if (WIFSIGNALED(childStatus))
     {
         exitStatus[0] = WTERMSIG(childStatus);
@@ -447,7 +425,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         i++;
     }
 
-    // Fork a new child process
+    /* Fork a new child process */
     pid_t spawnPid = fork();
 
     switch (spawnPid)
@@ -491,7 +469,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         {
             spawnPid = waitpid(spawnPid, &childStatus, 0);
             /* check exit status and print if necessary */
-            getStatus(childStatus, exitStatus);
+            setExitStatus(childStatus, exitStatus);
         }
         else
         {
@@ -661,8 +639,9 @@ void processCommand(struct userCommand *currCommand, int processIDs[], int exitS
     }
 }
 
+/* getInput */
 /* Receives input from the user. */
-/* Will check for hash or newline, otherwise return the buffer */
+/* Will check for hash or newline, otherwise return the buffer with the string */
 char *getInput()
 {
     char *buffer;
