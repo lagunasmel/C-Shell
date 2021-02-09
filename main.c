@@ -486,7 +486,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         execvp(args[0], args);
         /* Return if there is an error */
         perror(args[0]);
-        free(currCommand);
+        freeCommand(currCommand);
         exit(1);
         break;
     default:
