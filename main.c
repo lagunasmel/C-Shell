@@ -282,6 +282,20 @@ void redirectOutput(struct userCommand *currCommand)
     else if (currCommand->exeInBackground && currCommand->outputFile == NULL)
     {
         targetFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                /* Check for any errors */
+        if (targetFD == -1)
+        {
+            perror("/dev/null open(): ");
+            exit(1);
+        }
+
+        /* Point FD 1 to the target FD (outputFile) */
+        int result = dup2(targetFD, 1);
+        if (result == -1)
+        {
+            perror("/dev/null dup2(): ");
+            exit(1);
+        }
     }
 
     return;
@@ -320,6 +334,20 @@ void redirectInput(struct userCommand *currCommand)
     else if (currCommand->exeInBackground && currCommand->inputFile == NULL)
     {
         sourceFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                /* Check for errors */
+        if (sourceFD == -1)
+        {
+            perror("/dev/null open()");
+            exit(1);
+        }
+        /* Redirect the input file */
+        int result = dup2(sourceFD, 0);
+        /* Check for errors */
+        if (result == -1)
+        {
+            perror("/dev/null dup2()");
+            exit(1);
+        }
     }
 
     return;
@@ -437,10 +465,10 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
     case 0:
         /* Child process */
         /* signal handlers */
-        /* Ignore ctrl+c if in the foreground */
+        /* Allow ctrl+c to terminate in the foreground */
         if (!currCommand->exeInBackground)
         {
-            SIGINT_action.sa_handler = SIG_DFL; /* set default action back */
+            SIGINT_action.sa_handler = SIG_DFL; 
             sigfillset(&SIGINT_action.sa_mask);
             SIGINT_action.sa_flags = 0;
             sigaction(SIGINT, &SIGINT_action, NULL);
@@ -456,10 +484,9 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         redirectOutput(currCommand);
         /* Execute the command */
         execvp(args[0], args);
-
         /* Return if there is an error */
         perror(args[0]);
-        freeCommand(currCommand);
+        free(currCommand);
         exit(1);
         break;
     default:
