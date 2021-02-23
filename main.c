@@ -196,9 +196,6 @@ struct userCommand *parseCommand(char *input)
         modifiedStr[len - 1] = '\0';
     }
 
-    char *exitCommand = "exit";
-    char *statusCommand = "status";
-    char *lsCommand = "ls";
 
     /* The following code snippet was modeled after the parsing input example provided here: 
     https://repl.it/@cs344/studentsc#main.c */
