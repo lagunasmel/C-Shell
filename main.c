@@ -41,7 +41,7 @@ struct userCommand
 /* Displays the shell prompt for user to enter the command to run in the shell. */
 void displayPrompt()
 {
-    printf(": ");
+    printf("$: ");
     fflush(stdout);
 };
 
@@ -196,7 +196,6 @@ struct userCommand *parseCommand(char *input)
         modifiedStr[len - 1] = '\0';
     }
 
-
     /* The following code snippet was modeled after the parsing input example provided here: 
     https://repl.it/@cs344/studentsc#main.c */
     /* It is used to tokenize the user input and store the input in a struct to hold 
@@ -279,7 +278,7 @@ void redirectOutput(struct userCommand *currCommand)
     else if (currCommand->exeInBackground && currCommand->outputFile == NULL)
     {
         targetFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                /* Check for any errors */
+        /* Check for any errors */
         if (targetFD == -1)
         {
             perror("/dev/null open(): ");
@@ -331,7 +330,7 @@ void redirectInput(struct userCommand *currCommand)
     else if (currCommand->exeInBackground && currCommand->inputFile == NULL)
     {
         sourceFD = open("/dev/null", O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                /* Check for errors */
+        /* Check for errors */
         if (sourceFD == -1)
         {
             perror("/dev/null open()");
@@ -465,7 +464,7 @@ void createChildProcess(struct userCommand *currCommand, int processIDs[], int e
         /* Allow ctrl+c to terminate in the foreground */
         if (!currCommand->exeInBackground)
         {
-            SIGINT_action.sa_handler = SIG_DFL; 
+            SIGINT_action.sa_handler = SIG_DFL;
             sigfillset(&SIGINT_action.sa_mask);
             SIGINT_action.sa_flags = 0;
             sigaction(SIGINT, &SIGINT_action, NULL);
@@ -692,14 +691,14 @@ void handle_SIGTSTP(int signo)
 {
     if (!fgOnlyMode)
     {
-        char *message = "\nEntering foreground-only mode (& is now ignored)\n";
+        char *message = "\nEntering foreground-only mode (& is now ignored)\n$: ";
         fgOnlyMode = true;
         write(STDOUT_FILENO, message, strlen(message));
         fflush(stdout);
     }
     else
     {
-        char *message = "\nExiting foreground-only mode\n";
+        char *message = "\nExiting foreground-only mode\n$: ";
         fgOnlyMode = false;
         write(STDOUT_FILENO, message, strlen(message));
         fflush(stdout);
