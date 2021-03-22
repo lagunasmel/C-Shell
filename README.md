@@ -19,7 +19,7 @@ The following functionality is implemented:
 
 
 - [X] User is provided with a prompt <code>$:</code> for running commands
-- [X] User can insert blank lines and comments, which are lines beginning with the # character. The shell will reprompt the user for a new command if these characters are inserted.
+- [X] User can insert blank lines and comments, which are lines beginning with the <code>#</code> character. The shell will reprompt the user for a new command if these characters are inserted.
 - [X] User can expand the variable $$ to retain the process id of the current command.
 - [X] User can execute the commands <code>exit</code>, <code>cd</code>, and <code>status</code> via code built into the shell. <code>status</code> will return the exit status of the most recent foreground process.
 - [X] User can execute other commands, which are implemented by creating new processes using a function from the <code>exec</code> family of functions
