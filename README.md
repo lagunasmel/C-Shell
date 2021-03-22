@@ -7,7 +7,7 @@ It is the portfolio piece for CS 344 (Operating Systems)  at Oregon State Univer
 
 ## Program Functionality 
 
-The general syntax of a command line is the following: 
+The general syntax of a command is the following: 
 
     command [arg1 arg2 ...] [< input_file] [> output_file] [&]
 
