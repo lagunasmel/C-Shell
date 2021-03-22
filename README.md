@@ -13,7 +13,7 @@ The general syntax of a command is the following:
 
 The items in square brackets are optional, and the <code>&</code> is also optional.
 
-## User Stories
+### User Stories
 
 The following functionality is implemented:
 
